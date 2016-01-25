@@ -1,0 +1,25 @@
+---
+title: "Storm Data Analyses"
+author: "Jordan A. Kempker, MD, MSc"
+date: "January 25, 2016"
+output: html_document
+---
+
+# Synopsis
+The U.S. National Oceanic and Atmospheric Administration (NOAA) has tracked and documented major weather events impacting the US since 1950.  The database captures the time and location of severe weather events as well as estiamtes of their human impact.  
+
+The following analyses will examine this database and 
+
+# Data Processing
+1. Data download and loading into R.
+    + After manually setting your working directory in R, the following code will download the data into your working directory and then load into an R object
+    ```{r, cache = TRUE}
+    if (!file.exists("./StormData.csv.bz2")){
+    url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+    download.file(url,destfile = "./StormData.csv.bz2", method="auto")
+    }
+    storm <- read.csv("./StormData.csv.bz2", stringsAsFactors = TRUE)
+```
+
+
+# Results
