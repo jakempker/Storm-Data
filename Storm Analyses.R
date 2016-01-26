@@ -47,21 +47,18 @@ ggplot(head(human_impact, n = nrow(human_impact)/30), aes(x=EVTYPE, y = TotalImp
 #Now to look at economic damage
 # there is property damage and crop damage
 #each is composed of a numeric value and an associated character value that serves as a multiplier
+class(storm$PROPDMGEXP)
+factor(storm$PROPDMGEXP)
 table(storm$PROPDMGEXP)
+class(storm$PROPDMG)
+
 table(is.na(storm$PROPDMGEXP))
 table(is.na(storm$CROPDMGEXP))
 
 
-economic_impact <- mutate(storm, prop_exp = as.factor(PROPDMGEXP), crop_exp = as.factor(CROPDMGEXP))
+storm <- storm %>% mutate(prop_damage = ifelse(PROPDMGEXP == "K", 1000 * PROPDMG,
+                                ifelse(PROPDMGEXP == "k", 1000 * PROPDMG,
+                            ifelse(PROPDMGEXP == "B", 1000000000 * PROPDMG,
+                            ifelse(PROPDMGEXP == "M", 1000000 * PROPDMG,
+                            ifelse(PROPDMGEXP == "m", 1000000 * PROPDMG, NA))))))
     
-    
-    group_by(storm, as.factor(PROPDMGEXP))
-    
-    mutate(storm, prop_damage = if(PROPDMGEXP == "K") 1000)
-    
-    prop_damage = ifelse(PROPDMGEXP == "K", 1000 * PROPDMG}
-                          else if (PROPDMGEXP == "k"){prop_damage = 1000 * PROPDMG}
-                          else if (PROPDMGEXP == "B"){prop_damage = 1000000000 * PROPDMG}
-                          else if (PROPDMGEXP == "M"){prop_damage = 1000000 * PROPDMG}
-                          else if (PROPDMGEXP == "m"){prop_damage = 1000000 * PROPDMG}
-                          else {prop_damage = NA})
