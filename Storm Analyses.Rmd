@@ -9,34 +9,119 @@ output: html_document
 The United States (US) National Oceanic and Atmospheric Administration (NOAA) has tracked and documented major weather events impacting the US since 1950.  The database captures the time and location of severe weather events as well as estiamtes of their human impact.  
 
 The following analyses will examine this database.  Information regarding how the database can be found at the following links:
-> National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
-> National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+    * National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+    * National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
 
 # Data Processing
+
 The data processing and analysis will need the following R packages.
-```{r}
+
+```{r, results = "hide"}
 library(dplyr)
 library(ggplot2)
 ```
 
 1. Data download and load into R.
-    + After manually setting your working directory in R with setwd(), the following code will download the data into your working directory and then load into an R object, named **storm**.
-    ```{r, cache = TRUE}
-    if (!file.exists("./StormData.csv.bz2")){
-    url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
-    download.file(url,destfile = "./StormData.csv.bz2", method="auto")
-    }
-    storm <- read.csv("./StormData.csv.bz2", stringsAsFactors = TRUE)
+    + After manually setting your working directory in R with setwd(), the following code will download the data into your working directory, trim to only the variables we need (since it is a large file) and then load into an R object, named **storm**.
+```{r, cache = TRUE}
+if (!file.exists("./StormData.csv.bz2")){
+        url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+        download.file(url,destfile = "./StormData.csv.bz2", method="auto")
+}
+storm <- read.csv("./StormData.csv.bz2", stringsAsFactors = TRUE)
+storm <- select(storm, EVTYPE, FATALITIES, INJURIES, PROPDMGEXP, PROPDMG, CROPDMGEXP, CROPDMG)
 ```
-2. To get a sense of the data we will run a str() and head().
-```{r}
-str(storm)
-head(storm)
+
+2. To estimate the economic impact, we will need to do some transformations.  As explained in the data documentation the **PROPDMG** and **CROPDMG** variables are formatted into numeric values with 3 digits and 2 significant digits with the corresponding **PROPDMGEXP** and **CROPDMGEXP** variables supplying a character value that signifies the multipliers to be applied to these numbers.  The character values are 'B' or 'b' for 'billion', 'M' or 'm' for 'million' and 'K' or 'k' for thousand as the appropriate multiplier value.  So the following code creates new variables **prop_damage** and **crop_damage** as a numeric dollar amount of estimated damages from the available data.  Note that there were some aberrant values entered for **PROPDMGEXP** and **CROPDMGEXP** which are translated into **NAs**.
+```{r, cache=TRUE, tidy=TRUE}
+
+table(storm$PROPDMGEXP)
+table(storm$CROPDMGEXP)
+
+storm <- storm %>% mutate(prop_damage = ifelse(PROPDMG == 0, 0,
+                                        ifelse(PROPDMGEXP == "K", 1000 * PROPDMG,
+                                        ifelse(PROPDMGEXP == "k", 1000 * PROPDMG,
+                                        ifelse(PROPDMGEXP == "M", 1000000 * PROPDMG,
+                                        ifelse(PROPDMGEXP == "m", 1000000 * PROPDMG, 
+                                        ifelse(PROPDMGEXP == "B", 1000000000 * PROPDMG, NA)))))))
+    
+
+storm <- storm %>% mutate(crop_damage = ifelse(CROPDMG ==0, 0,
+                                        ifelse(CROPDMGEXP == "K", 1000 * CROPDMG,
+                                        ifelse(CROPDMGEXP == "k", 1000 * CROPDMG,
+                                        ifelse(CROPDMGEXP == "M", 1000000 * CROPDMG,
+                                        ifelse(CROPDMGEXP == "m", 1000000 * CROPDMG,
+                                        ifelse(CROPDMGEXP == "B", 1000000000 * CROPDMG, NA)))))))
+
+
+summary(storm$prop_damage)
+summary(storm$crop_damage) 
 ```
+
 3. Since we are doing an analysis by storm type, we will transform the **EVTYPE** into a factor and group data by this factor variable.
-```{r}
+```{r, cache = TRUE}
 storm$EVTYPE <- as.factor(storm$EVTYPE)
 storm <- group_by(storm, EVTYPE)
 ```
-4. 
+
+4. To look at the human impact of storms by storm type, a separate aggregated dataset, named **human_impact** will be created with the following  variables:
+    + **TotalDeath** = sum of deaths from all years for each storm type
+    + **TotalInjuary** = sum of injuries from all years for each storm type
+    + **TotalImpact** = sum of deaths and injuries from all years for each storm type
+
+This dataset also only includes storm types that have **TotalImpact** > 0.
+```{r}
+human_impact <- summarise(storm, 
+                                TotalDeath=sum(FATALITIES),
+                                TotalInjury=sum(INJURIES),
+                                TotalImpact=sum(TotalDeath, TotalInjury))
+human_impact <- arrange(human_impact, desc(TotalImpact, TotalDeath))
+human_impact <- filter(human_impact, TotalImpact > 0)
+```
+
+5. To look at the economic impact of each storm type, a separate aggregated dataset, named **econ_impact** will be created with the following variables:
+    + **TotalProp** = estimated dollar sum of property damage from all years by storm type
+    + **TotalCrop** = estimated dollar sum of crop damage from all years by storm type
+    + **TotalDamage** = estimated dollar sum of property and crop damage from all years by storm type
+
+This dataset also only includes storm types with **TotalDamage** > 0.
+```{r}
+econ_impact <- summarise(storm, 
+                                TotalProp = sum(prop_damage), 
+                                TotalCrop = sum(crop_damage), 
+                                TotalDamage = sum(TotalProp, TotalCrop))
+
+econ_impact <- filter(econ_impact, TotalDamage > 0)
+econ_impact <- arrange(econ_impact, desc(TotalDamage)) 
+```
+
 # Results
+The below displays the storm types thatcaused the most human impact in the US from 1950 to 2011.
+```{r, tidy=TRUE}
+human_impact <- arrange(human_impact, desc(TotalImpact, TotalDeath))
+print(head(human_impact, n = nrow(human_impact)/5))
+```
+
+The folowing bar graph displays the total estimated human injuries and deaths of the top 10 of teh most damaging storm types that caused at least 1 recorded human injury or death from 1950 to 2011.
+```{r, fig.width= 15}
+ggplot(head(human_impact, n = 10), aes(x=EVTYPE, y = TotalImpact)) + 
+    geom_bar(stat = "identity") +
+    xlab("Event Type") +
+    ylab("Total Number of Human Injuries + Deaths")+
+    ggtitle("Sums of the Human Impact of US Storms by Storm Type, 1950-2011")
+```
+
+The below table displays the storm types that caused the most property and crop damage from 1950-2011.
+```{r, tidy=TRUE}
+   econ_impact <- arrange(econ_impact, desc(TotalDamage))
+   print(head(econ_impact, n=nrow(econ_impact)/5))
+```
+
+The folowing bar graph displays the total estimated damages to crops and property of the top 10 of the most damaging storm types that caused at least 1 recorded human injury or death from 1950 to 2011.
+```{r, fig.width=15}
+ggplot(head(econ_impact, n=10), aes(x=EVTYPE, y = TotalDamage)) +
+    geom_bar(stat = 'identity') +
+    xlab("Event Type") +
+    ylab("Estimated Dollar Amount of Damages") +
+    ggtitle("Sum of Estimated Dollar Amount of Crop and Property Damage by Storm Type, US 1950-2011")
+```   
